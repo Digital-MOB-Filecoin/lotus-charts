@@ -1,0 +1,10 @@
+{{- if .Values.podSecurityPolicy.create -}}
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: {{ template "lotus-aio.fullname" . }}
+  labels:
+    {{- include "lotus-aio.labels" . | nindent 4 }}
+spec:
+  {{- toYaml .Values.podSecurityPolicy.spec | nindent 2 }}
+{{- end -}}

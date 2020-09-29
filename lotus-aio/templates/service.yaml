@@ -1,0 +1,40 @@
+{{- if .Values.miner.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lotus-aio.fullname" . }}-daemon
+  labels:
+    {{- include "lotus-aio.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.daemon.service.type }}
+  ports:
+    - port: {{ .Values.daemon.service.port }}
+      targetPort: api
+      protocol: TCP
+      name: api
+  selector:
+    {{- include "lotus-aio.selectorLabels" . | nindent 4 }}
+{{- end }}
+{{- if .Values.miner.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lotus-aio.fullname" . }}-miner
+  annotations:
+  {{- with .Values.miner.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "lotus-aio.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.miner.service.type }}
+  ports:
+    - port: {{ .Values.miner.service.port }}
+      targetPort: miner
+      protocol: TCP
+      name: miner
+  selector:
+    {{- include "lotus-aio.selectorLabels" . | nindent 4 }}
+{{- end }}

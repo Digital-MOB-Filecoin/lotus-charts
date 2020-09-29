@@ -1,0 +1,235 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "lotus-aio.fullname" . }}
+  labels:
+    {{- include "lotus-aio.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ template "lotus-aio.fullname" . }}-headless
+  selector:
+    matchLabels:
+      {{- include "lotus-aio.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicaCount }}
+  updateStrategy:
+    type: {{ .Values.updateStrategy }}
+  podManagementPolicy: {{ .Values.podManagementPolicy }}
+  template:
+    metadata:
+      labels:
+        {{- include "lotus-aio.selectorLabels" . | nindent 8 }}
+      annotations:
+        configChecksum: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum | trunc 63 }}
+        {{- with .Values.podAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "lotus-aio.serviceAccountName" . }}
+      {{- else if not (eq .Values.serviceAccount.name "") }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+{{- if .Values.daemon.init.sync }}
+      - name: sync-wait
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/entrypoint", "-s"]
+        volumeMounts:
+        - name: {{ template "lotus-aio.fullname" . }}-daemon
+          mountPath: /root/.lotus
+{{- end }}
+{{- if .Values.miner.init.createWallet }}
+      - name: wallet-create
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/sh"]
+        args: ["-c", "mkdir -p /root/.lotus/keystore && addr=$(lotus-shed keyinfo new bls) && echo $(cat bls-${addr}.keyinfo) | lotus-shed keyinfo import"]
+        volumeMounts:
+        - name: {{ template "lotus-aio.fullname" . }}-daemon
+          mountPath: /root/.lotus
+{{- end }}
+{{- if .Values.miner.init.importWallet }}
+      - name: wallet-import
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/sh"]
+        args: ["-c", "mkdir -p /root/.lotus/keystore && echo {{ .Values.miner.wallet.keyinfo }} | lotus-shed keyinfo import"]
+        volumeMounts:
+        - name: {{ template "lotus-aio.fullname" . }}-daemon
+          mountPath: /root/.lotus
+{{- end }}
+{{- if .Values.miner.init.minerInit }}
+      - name: miner-init-wait
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/entrypoint"]
+        env:
+        - name: MINERINIT
+          value: "true"
+        - name: MINEROWNER
+          value: {{ .Values.miner.wallet.address | quote }}
+        - name: MINERWORKER
+          value: {{ .Values.miner.worker.address | quote }}
+        volumeMounts:
+        - name: {{ template "lotus-aio.fullname" . }}-daemon
+          mountPath: /root/.lotus
+        - name: {{ template "lotus-aio.fullname" . }}-miner
+          mountPath: /root/.lotusminer
+{{- end }}
+      containers:
+{{- if .Values.daemon.enabled }}
+      - name: lotus-daemon
+        securityContext:
+          {{- toYaml .Values.daemon.securityContext | nindent 12 }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/usr/local/bin/lotus"]
+        args: ["daemon"]
+        ports:
+        - containerPort: 1234
+          name: api
+        - containerPort: 1235
+          name: p2p
+        volumeMounts:
+{{- if .Values.daemon.persistence.enabled }}
+        - name: {{ template "lotus-aio.fullname" . }}-daemon
+          mountPath: /root/.lotus
+{{- end }}
+{{- if .Values.daemon.configFiles }}
+        {{- range $path, $config := .Values.daemon.configFiles }}
+        - name: lotus-daemon-config
+          mountPath: /root/.lotus/{{ $path }}
+          readOnly: true
+          subPath: {{ $path }}
+        {{- end }}
+{{- end }}
+        - name: filecoin-proof-parameters
+          mountPath: /var/tmp/filecoin-proof-parameters
+        resources:
+          {{- toYaml .Values.daemon.resources | nindent 12 }}
+{{- end }}
+{{- if .Values.miner.enabled }}
+      - name: lotus-miner
+        securityContext:
+          {{- toYaml .Values.miner.securityContext | nindent 12 }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/bash"]
+        args: ["-c", "/bin/wait-for-it 127.0.0.1:1234 --timeout=300 --strict -- lotus-miner run"]
+        ports:
+        - containerPort: 3452
+          name: miner
+        volumeMounts:
+{{- if .Values.daemon.persistence.enabled }}
+        - name: {{ template "lotus-aio.fullname" . }}-daemon
+          mountPath: /root/.lotus
+{{- end }}
+{{- if .Values.miner.persistence.enabled }}
+        - name: {{ template "lotus-aio.fullname" . }}-miner
+          mountPath: /root/.lotusminer
+{{- end }}
+{{- if .Values.miner.configFiles }}
+        {{- range $path, $config := .Values.miner.configFiles }}
+        - name: lotus-miner-config
+          mountPath: /root/.lotusminer/{{ $path }}
+          readOnly: true
+          subPath: {{ $path }}
+        {{- end }}
+{{- end }}
+        - name: filecoin-proof-parameters
+          mountPath: /var/tmp/filecoin-proof-parameters
+        resources:
+          {{- toYaml .Values.miner.resources | nindent 12 }}
+{{- end }}
+{{- if .Values.worker.enabled }}
+      - name: lotus-worker
+        securityContext:
+          {{- toYaml .Values.worker.securityContext | nindent 12 }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/bash"]
+        args: ["-c", "/bin/wait-for-it 127.0.0.1:2345 --timeout=300 --strict && eval $(lotus-miner auth api-info --perm admin) lotus-worker run"]
+        volumeMounts:
+{{- if .Values.daemon.persistence.enabled }}
+        - name: {{ template "lotus-aio.fullname" . }}-daemon
+          mountPath: /root/.lotus
+{{- end }}
+{{- if .Values.miner.persistence.enabled }}
+        - name: {{ template "lotus-aio.fullname" . }}-miner
+          mountPath: /root/.lotusminer
+{{- end }}
+{{- if .Values.worker.persistence.enabled }}
+        - name: {{ template "lotus-aio.fullname" . }}-worker
+          mountPath: /root/.lotusworker
+{{- end }}
+{{- if .Values.worker.configFiles }}
+        {{- range $path, $config := .Values.worker.configFiles }}
+        - name: lotus-worker-config
+          mountPath: /root/.lotusworker/{{ $path }}
+          readOnly: true
+          subPath: {{ $path }}
+        {{- end }}
+{{- end }}
+        - name: filecoin-proof-parameters
+          mountPath: /var/tmp/filecoin-proof-parameters
+        resources:
+          {{- toYaml .Values.worker.resources | nindent 12 }}
+{{- end }}
+      volumes:
+{{- if (and .Values.daemon.enabled .Values.daemon.configFiles) }}
+      - name: lotus-daemon-config
+        configMap:
+          name: {{ template "lotus-aio.fullname" . }}-daemon-config
+{{- end }}
+{{- if (and .Values.miner.enabled .Values.miner.configFiles) }}
+      - name: lotus-miner-config
+        configMap:
+          name: {{ template "lotus-aio.fullname" . }}-miner-config
+{{- end }}
+{{- if (and .Values.worker.enabled .Values.worker.configFiles) }}
+      - name: lotus-worker-config
+        configMap:
+          name: {{ template "lotus-aio.fullname" . }}-worker-config
+{{- end }}
+      - name: filecoin-proof-parameters
+        emptyDir: {}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+{{- if (and .Values.daemon.enabled .Values.daemon.persistence.enabled)}}
+  - metadata:
+      name: {{ template "lotus-aio.fullname" . }}-daemon
+    spec:
+      {{- toYaml .Values.daemon.persistence.volumeClaimTemplate | nindent 8 }}
+{{- end }}
+{{- if (and .Values.miner.enabled .Values.miner.persistence.enabled)}}
+  - metadata:
+      name: {{ template "lotus-aio.fullname" . }}-miner
+    spec:
+      {{- toYaml .Values.miner.persistence.volumeClaimTemplate | nindent 8 }}
+{{- end }}
+{{- if (and .Values.worker.enabled .Values.worker.persistence.enabled)}}
+  - metadata:
+      name: {{ template "lotus-aio.fullname" . }}-worker
+    spec:
+      {{- toYaml .Values.worker.persistence.volumeClaimTemplate | nindent 8 }}
+{{- end }}

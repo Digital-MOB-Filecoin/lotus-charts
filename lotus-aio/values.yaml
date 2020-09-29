@@ -1,0 +1,124 @@
+# Default values for lotus-aio.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+updateStrategy: RollingUpdate
+podManagementPolicy: Parallel
+podAnnotations: {}
+podSecurityContext: {}
+  # fsGroup: 2000
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+imagePullSecrets: []
+
+image:
+  repository: digitalmob/lotus
+  pullPolicy: IfNotPresent
+  tag: ntwk-nerpa-9.15.0-1-amd64
+
+daemon:
+  enabled: true
+  init:
+    sync: true
+  securityContext: {}
+  configFiles:
+    config.toml: |
+        [API]
+          ListenAddress = "/ip4/127.0.0.1/tcp/1234/http"
+          Timeout = "30s"
+        [Libp2p]
+          ListenAddresses = ["/ip4/127.0.0.1/tcp/1235", "/ip6/::1/tcp/1235"]
+  service:
+    type: ClusterIP
+    port: 1234
+  resources: {}
+  persistence:
+    enabled: true
+    volumeClaimTemplate:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "gp2-encrypted"
+      resources:
+        requests:
+          storage: 256Gi
+
+
+miner:
+  enabled: true
+  init:
+    minerInit: false
+    createWallet: false
+    importWallet: false
+  wallet:
+    address: t3u4ju32deoywsybx4q5beecmxy2sz4l4clw2rw23p3mvmiiklr54pylbdwqzb34rmsfbjioxp55ghtnmt24dq
+    keyinfo: 7b2254797065223a22626c73222c22507269766174654b6579223a224175674934782f7a616535795a563957556f6e2f2f4a713641513666647338314d48666b334647723644513d227d
+  worker:
+    address: t3u4ju32deoywsybx4q5beecmxy2sz4l4clw2rw23p3mvmiiklr54pylbdwqzb34rmsfbjioxp55ghtnmt24dq
+  securityContext: {}
+  configFiles:
+    config.toml: |
+        [Libp2p]
+          ListenAddresses = ["/ip4/0.0.0.0/tcp/3452", "/ip6/::/tcp/3452"]
+          AnnounceAddress = ["/dns4/a577f46fe0dbe4bec810ede1c49daa30-00ff17648f5f20e6.elb.us-east-2.amazonaws.com/tcp/3452"]
+        [Dealmaking]
+          ConsiderOnlineStorageDeals = true
+          ConsiderOfflineStorageDeals = true
+          ConsiderOnlineRetrievalDeals = true
+          ConsiderOfflineRetrievalDeals = true
+  service:
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    type: LoadBalancer
+    port: 3452
+  resources: {}
+  persistence:
+    enabled: true
+    volumeClaimTemplate:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "gp2-encrypted"
+      resources:
+        requests:
+          storage: 256Gi
+
+worker:
+  enabled: true
+  securityContext: {}
+  # configFiles:
+  #   config.toml: |
+  #       blabla
+  resources: {}
+  persistence:
+    enabled: true
+    volumeClaimTemplate:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "gp2-encrypted"
+      resources:
+        requests:
+          storage: 256Gi
+
+nameOverride: ""
+fullnameOverride: ""
+
+pdb:
+  enabled: false
+
+podSecurityPolicy:
+  create: false
+  name: ""
+
+rbac:
+  create: false
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
