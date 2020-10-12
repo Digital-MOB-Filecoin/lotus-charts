@@ -1,0 +1,20 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ template "lotus-daemon.fullname" . }}
+  labels:
+    {{- include "lotus-daemon.labels" . | nindent 4}}
+subjects:
+  - kind: ServiceAccount
+    {{- if eq .Values.serviceAccount.name "" }}
+    name: {{ include "lotus-daemon.serviceAccountName" . | quote }}
+    {{- else }}
+    name: {{ .Values.serviceAccount.name | quote }}
+    namespace: {{ .Release.Namespace | quote }}
+    {{- end }}
+roleRef:
+  kind: Role
+  name: {{ template "lotus-daemon.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end -}}

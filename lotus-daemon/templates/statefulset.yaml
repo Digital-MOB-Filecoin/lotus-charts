@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "lotus-daemon.fullname" . }}
+  labels:
+    {{- include "lotus-daemon.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ template "lotus-daemon.fullname" . }}-headless
+  selector:
+    matchLabels:
+      {{- include "lotus-daemon.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicaCount }}
+  updateStrategy:
+    type: {{ .Values.updateStrategy }}
+  podManagementPolicy: {{ .Values.podManagementPolicy }}
+  template:
+    metadata:
+      labels:
+        {{- include "lotus-daemon.selectorLabels" . | nindent 8 }}
+      annotations:
+        configChecksum: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum | trunc 63 }}
+        {{- with .Values.podAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "lotus-daemon.serviceAccountName" . }}
+      {{- else if not (eq .Values.serviceAccount.name "") }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+{{- if .Values.init.sync }}
+      - name: sync-wait
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/entrypoint", "-s"]
+        volumeMounts:
+        - name: {{ template "lotus-daemon.fullname" . }}
+          mountPath: /root/.lotus
+        {{- range $path, $config := .Values.configFiles }}
+        - name: lotus-daemon-config
+          mountPath: /root/.lotus/{{ $path }}
+          readOnly: true
+          subPath: {{ $path }}
+        {{- end }}
+{{- end }}
+      containers:
+      - name: lotus-daemon
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/entrypoint", "-d"]
+        ports:
+        - containerPort: 1234
+          name: api
+        - containerPort: 1235
+          name: p2p
+        livenessProbe:
+          httpGet:
+            path: /debug/metrics
+            port: api
+          initialDelaySeconds: 150
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 6
+        readinessProbe:
+          httpGet:
+            path: /debug/metrics
+            port: api
+          initialDelaySeconds: 200
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 3
+        volumeMounts:
+        - name: {{ template "lotus-daemon.fullname" . }}
+          mountPath: /root/.lotus
+        {{- range $path, $config := .Values.configFiles }}
+        - name: lotus-daemon-config
+          mountPath: /root/.lotus/{{ $path }}
+          readOnly: true
+          subPath: {{ $path }}
+        {{- end }}
+        - name: filecoin-proof-parameters
+          mountPath: /var/tmp/filecoin-proof-parameters
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+      - name: lotus-daemon-config
+        configMap:
+          name: {{ template "lotus-daemon.fullname" . }}-config
+      - name: filecoin-proof-parameters
+        emptyDir: {}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ template "lotus-daemon.fullname" . }}
+    spec:
+      {{- toYaml .Values.persistence.volumeClaimTemplate | nindent 8 }}
