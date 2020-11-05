@@ -27,6 +27,8 @@ image:
 daemon:
   enabled: true
   init:
+    importSnapshot:
+      enabled: false
     sync: true
   securityContext: {}
   configFiles:

@@ -38,6 +38,31 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
+{{- if .Values.daemon.init.importSnapshot.enabled }}
+      - name: import-snapshot
+        image: {{ .Values.image.repositry }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+          - /bin/entrypoint
+{{- if .Values.daemon.init.importSnapshot.SNAPSHOTURL }}
+          - -n
+{{- else }}
+          - -f
+{{- end }}
+        env:
+{{- if .Values.daemon.init.importSnapshot.SNAPSHOTURL }}
+        - name: SNAPSHOTURL
+          value: {{ .Values.daemon.init.importSnapshot.SNAPSHOTURL }}
+{{- else }}
+        - name: SNAPSHOT_CID
+          value: {{ .Values.daemon.init.importSnapshot.SNAPSHOT_CID }}
+        - name: IPFS_GW
+          value: {{ .Values.daemon.init.importSnapshot.IPFS_GW }}
+{{- end }}
+        volumeMounts:
+        - name: {{ template "lotus-aio.fullname" . }}-daemon
+          mountPath: /root/.lotus
+{{- end }}
 {{- if .Values.daemon.init.sync }}
       - name: sync-wait
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
