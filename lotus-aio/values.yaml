@@ -22,7 +22,7 @@ imagePullSecrets: []
 image:
   repository: digitalmob/lotus
   pullPolicy: IfNotPresent
-  tag: ntwk-nerpa-9.15.0-1-amd64
+  tag: v1.2.1-amd64
 
 daemon:
   enabled: true
@@ -45,16 +45,11 @@ daemon:
   resources: {}
   persistence:
     enabled: true
-    volumeClaimTemplate:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "gp2"
-      resources:
-        requests:
-          storage: 256Gi
+    volumeClaimTemplate: {}
 
 
 miner:
-  enabled: true
+  enabled: false
   init:
     minerInit: false
     createWallet: false
@@ -76,20 +71,13 @@ miner:
           ConsiderOnlineRetrievalDeals = true
           ConsiderOfflineRetrievalDeals = true
   service:
-    annotations:
-      service.beta.kubernetes.io/aws-load-balancer-type: nlb
-      service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    annotations: {}
     type: LoadBalancer
     port: 3452
   resources: {}
   persistence:
     enabled: true
-    volumeClaimTemplate:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "gp2"
-      resources:
-        requests:
-          storage: 256Gi
+    volumeClaimTemplate: {}
 
 worker:
   enabled: false
@@ -100,12 +88,7 @@ worker:
   resources: {}
   persistence:
     enabled: true
-    volumeClaimTemplate:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "gp2"
-      resources:
-        requests:
-          storage: 256Gi
+    volumeClaimTemplate: {}
 
 nameOverride: ""
 fullnameOverride: ""
