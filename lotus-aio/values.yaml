@@ -29,6 +29,7 @@ daemon:
   init:
     importSnapshot:
       enabled: false
+      SNAPSHOTURL: https://fil-chain-snapshots-fallback.s3.amazonaws.com/mainnet/minimal_finality_stateroots_latest.car
     sync: true
   securityContext: {}
   configFiles:
@@ -46,7 +47,7 @@ daemon:
     enabled: true
     volumeClaimTemplate:
       accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "gp2-encrypted"
+      storageClassName: "gp2"
       resources:
         requests:
           storage: 256Gi
@@ -59,16 +60,16 @@ miner:
     createWallet: false
     importWallet: false
   wallet:
-    address: t3u4ju32deoywsybx4q5beecmxy2sz4l4clw2rw23p3mvmiiklr54pylbdwqzb34rmsfbjioxp55ghtnmt24dq
-    keyinfo: 7b2254797065223a22626c73222c22507269766174654b6579223a224175674934782f7a616535795a563957556f6e2f2f4a713641513666647338314d48666b334647723644513d227d
+    address: ''
+    keyinfo: ''
   worker:
-    address: t3u4ju32deoywsybx4q5beecmxy2sz4l4clw2rw23p3mvmiiklr54pylbdwqzb34rmsfbjioxp55ghtnmt24dq
+    address: ''
   securityContext: {}
   configFiles:
     config.toml: |
         [Libp2p]
           ListenAddresses = ["/ip4/0.0.0.0/tcp/3452", "/ip6/::/tcp/3452"]
-          AnnounceAddress = ["/dns4/a577f46fe0dbe4bec810ede1c49daa30-00ff17648f5f20e6.elb.us-east-2.amazonaws.com/tcp/3452"]
+          AnnounceAddress = []
         [Dealmaking]
           ConsiderOnlineStorageDeals = true
           ConsiderOfflineStorageDeals = true
@@ -85,23 +86,23 @@ miner:
     enabled: true
     volumeClaimTemplate:
       accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "gp2-encrypted"
+      storageClassName: "gp2"
       resources:
         requests:
           storage: 256Gi
 
 worker:
-  enabled: true
+  enabled: false
   securityContext: {}
-  # configFiles:
-  #   config.toml: |
-  #       blabla
+  configFiles:
+    config.toml: |
+        # Worker configuration file
   resources: {}
   persistence:
     enabled: true
     volumeClaimTemplate:
       accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "gp2-encrypted"
+      storageClassName: "gp2"
       resources:
         requests:
           storage: 256Gi
