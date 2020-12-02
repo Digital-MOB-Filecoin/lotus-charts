@@ -79,17 +79,6 @@ miner:
     enabled: true
     volumeClaimTemplate: {}
 
-worker:
-  enabled: false
-  securityContext: {}
-  configFiles:
-    config.toml: |
-        # Worker configuration file
-  resources: {}
-  persistence:
-    enabled: true
-    volumeClaimTemplate: {}
-
 nameOverride: ""
 fullnameOverride: ""
 
