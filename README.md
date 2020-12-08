@@ -6,15 +6,101 @@ Filecoin Lotus All-in-One chart
 
 Running Lotus in Kubernetes is still experimental. Performance may vary. Please make sure you always backup your wallets.
 
-This Helm Chart will run by default only the lotus daemon. The initial sync process is using a [trusted state snapshot](https://docs.filecoin.io/get-started/lotus/chain/#syncing-from-a-trusted-state-snapshot-mainnet). 
+Before using this Helm Chart please familiarize yourself with the Filecoin Project by reading the [Official Filecoin Docs](https://docs.filecoin.io/)
 
 ## Installation
 
-TODO
+### Basic installation
 
-**Homepage:** <https://filecoin.io/>
+This chart by default will start a Lotus Daemon container with no persistent storage.
 
-## Recommedations
+```sh
+helm upgrade --install lotus-aio ./lotus-aio
+```
+
+### Syncing from a trusted snapshot
+
+In order to reduce the sync time, it is recommended to sync the daemon from a [trusted state snapshot](https://docs.filecoin.io/get-started/lotus/chain/#syncing-from-a-trusted-state-snapshot-mainnet).
+
+```sh
+helm upgrade --install lotus-aio ./lotus-aio --set daemon.init.importSnapshot.enabled=true
+```
+
+### Mining
+
+By default the miner container is disabled. We do not recommend running `mainnet` miners on Kubernetes containers. However, if you wish to do so, you can enable the miner container.
+
+```sh
+helm upgrade --install lotus-aio ./lotus-aio --set miner.enabled=true
+```
+
+#### Miner connectivity
+
+In order to be able to make deals, a miner must be reachable. In order to achieve this, this Helm Chart will create a Kubernetes `Service` of type `LoadBalancer` and expose the miner on port `3452`. To make the miner reachable, after you install the chart, you have to find out the Load Balancer address:
+
+```sh
+kubectl get svc
+NAME                                                         TYPE           CLUSTER-IP       EXTERNAL-IP                                                                     PORT(S)                      AGE
+lotus-aio-miner    LoadBalancer   172.20.63.135   REDACTED.elb.us-east-2.amazonaws.com   3452:31404/TCP   75d
+```
+
+Then create a local `values.yaml` file to update the miner's `config.toml` configuration file (adjust and add according to your specific requirements):
+
+```yaml
+miner:
+  configFiles:
+    config.toml: |
+        [Libp2p]
+          ListenAddresses = ["/ip4/0.0.0.0/tcp/3452", "/ip6/::/tcp/3452"]
+          AnnounceAddress = ["/ip4/REDACTED.elb.us-east-2.amazonaws.com/tcp/3452"]
+        [Dealmaking]
+          ConsiderOnlineStorageDeals = true
+          ConsiderOfflineStorageDeals = true
+          ConsiderOnlineRetrievalDeals = true
+          ConsiderOfflineRetrievalDeals = true
+```
+
+Then upgrade the Helm release:
+
+```sh
+helm upgrade lotus-aio ./lotus-aio -f values.yaml
+```
+
+Finally, publish the miner address.
+
+```sh
+kubectl exec -ti lotus-aio -c lotus-miner -- lotus-miner actor set-addres /ip4/REDACTED.elb.us-east-2.amazonaws.com/tcp/3452
+```
+
+### Wallets
+
+A BLS wallet can be created automatically or imported if you already have one.
+
+#### Create a new wallet on startup
+
+To create a wallet automatically install this chart with:
+
+```sh
+helm upgrade --install lotus-aio ./lotus-aio --set miner.enabled=true --set miner.init.createWallet=true 
+```
+
+#### Import a wallet on startup
+
+BLS wallets can be imported as well. You will need to know the wallet address and it's associated keyinfo. 
+
+```sh
+helm upgrade --install lotus-aio ./lotus-aio --set miner.enabled=true --set miner.init.importWallet=true --set miner.wallet.address=<WALLET_ADDRESS> --set miner.wallet.keyinfo=<WALLET_KEYINFO>
+```
+
+#### Wallet backup
+
+Due to the experimental nature of running Lotus in Kubernetes we recommend to always backup your wallets after installing the Helm chart.
+
+``` sh
+kubectl exec -ti <POD_NAME> -- lotus wallet export <WALLET_ADDR>
+```
+
+## Resource recommedations
 
 ### Storage 
 
@@ -39,15 +125,7 @@ miner:
       memory: 192Gi
 ```
 
-### Wallets
-
-Due to the experimental nature of running Lotus in Kubernetes we recommend to always backup your wallets after installing the Helm chart.
-
-``` sh
-kubectl exec -ti <POD_NAME> -- lotus wallet export <WALLET_ADDR>
-```
-
-## Values
+## Values Reference
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -89,12 +167,6 @@ kubectl exec -ti <POD_NAME> -- lotus wallet export <WALLET_ADDR>
 | miner.resources | object | `{}` |  |
 | miner.persistence.enabled | bool | `true` | Persists miner data to a locally attached volume. |
 | miner.persistence.volumeClaimTemplate | string | `{}` | A valid Kubernetes `volumeClaimTemplate` block. |
-| worker.enabled | bool | `false` | Enables the Lotus worker container |
-| worker.securityContext | object | `{}` |  |
-| worker.configFiles."config.toml" | string | `"# Worker configuration file\n"` | Lotus worker `config.toml` file. See [the official documentation](https://docs.filecoin.io/get-started/lotus/configuration-and-advanced-usage/#configuration) for reference. |
-| worker.resources | object | `{}` |  |
-| worker.persistence.enabled | bool | `true` | Persists worker data to a locally attached volume. |
-| worker.persistence.volumeClaimTemplate | string | `{}` | A valid Kubernetes `volumeClaimTemplate` block. |
 | nameOverride | string | `""` |  |
 | fullnameOverride | string | `""` |  |
 | pdb.enabled | bool | `false` |  |
