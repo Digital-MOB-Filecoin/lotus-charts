@@ -40,7 +40,7 @@ spec:
       initContainers:
 {{- if .Values.daemon.init.importSnapshot.enabled }}
       - name: import-snapshot
-        image: {{ .Values.image.repositry }}:{{ .Values.image.tag }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
           - /bin/entrypoint
@@ -128,6 +128,8 @@ spec:
 {{- if .Values.daemon.persistence.enabled }}
         - name: {{ template "lotus-aio.fullname" . }}-daemon
           mountPath: /root/.lotus
+{{- end }}          
+{{- if (and .Values.daemon.enabled .Values.daemon.persistence.datastore.enabled)}}
         - name: {{ template "lotus-aio.fullname" . }}-daemon-datastore
           mountPath: /root/.lotus/datastore
 {{- end }}
@@ -208,7 +210,9 @@ spec:
   - metadata:
       name: {{ template "lotus-aio.fullname" . }}-daemon
     spec:
-      {{- toYaml .Values.daemon.persistence.config.volumeClaimTemplate | nindent 8 }}
+      {{- toYaml .Values.daemon.persistence.volumeClaimTemplate | nindent 8 }}
+{{- end }}   
+{{- if (and .Values.daemon.enabled .Values.daemon.persistence.datastore.enabled)}}
   - metadata:
       name: {{ template "lotus-aio.fullname" . }}-deamon-datastore
     spec:

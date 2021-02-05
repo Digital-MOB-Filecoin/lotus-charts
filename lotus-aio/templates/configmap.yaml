@@ -26,17 +26,3 @@ data:
 {{ $config | indent 4 -}}
 {{- end }}
 {{- end }}
-{{- if .Values.worker.configFiles }}
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ template "lotus-aio.fullname" . }}-worker-config
-  labels:
-    {{- include "lotus-aio.labels" . | nindent 4 }}
-data:
-{{- range $path, $config := .Values.worker.configFiles }}
-  {{ $path }}: |
-{{ $config | indent 4 -}}
-{{- end }}
-{{- end }}

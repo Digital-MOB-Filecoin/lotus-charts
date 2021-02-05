@@ -20,9 +20,9 @@ serviceAccount:
 imagePullSecrets: []
 
 image:
-  repository: digitalmob/lotus
+  repository: ognots/lotus
   pullPolicy: IfNotPresent
-  tag: v1.2.1-amd64
+  tag: glif-master-1 
 
 daemon:
   enabled: true
@@ -46,7 +46,6 @@ daemon:
   persistence:
     enabled: true
     volumeClaimTemplate: {}
-
 
 miner:
   enabled: false
